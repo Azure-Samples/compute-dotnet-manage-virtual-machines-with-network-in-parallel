@@ -7,7 +7,7 @@
 
   <Import Project="$(VSToolsPath)\DotNet\Microsoft.DotNet.Props" Condition="'$(VSToolsPath)' != ''" />
   <PropertyGroup Label="Globals">
-    <ProjectGuid>90ff26af-861d-4847-b3ac-543ccc00b16b</ProjectGuid>
+    <ProjectGuid>54502397-4889-4ace-908b-0f00c65b62e3</ProjectGuid>
     <RootNamespace>ManageVirtualMachinesInParallelWithNetwork</RootNamespace>
     <BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)'=='' ">.\obj</BaseIntermediateOutputPath>
     <OutputPath Condition="'$(OutputPath)'=='' ">.\bin\</OutputPath>
