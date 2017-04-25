@@ -5,10 +5,10 @@ using Microsoft.Azure.Management.Fluent;
 using Microsoft.Azure.Management.Compute.Fluent.Models;
 using Microsoft.Azure.Management.Compute.Fluent;
 using Microsoft.Azure.Management.Network.Fluent;
-using Microsoft.Azure.Management.Resource.Fluent;
-using Microsoft.Azure.Management.Resource.Fluent.Authentication;
-using Microsoft.Azure.Management.Resource.Fluent.Core;
-using Microsoft.Azure.Management.Resource.Fluent.Core.ResourceActions;
+using Microsoft.Azure.Management.ResourceManager.Fluent;
+using Microsoft.Azure.Management.ResourceManager.Fluent.Authentication;
+using Microsoft.Azure.Management.ResourceManager.Fluent.Core;
+using Microsoft.Azure.Management.ResourceManager.Fluent.Core.ResourceActions;
 using Microsoft.Azure.Management.Network.Fluent.Models;
 using Microsoft.Azure.Management.Samples.Common;
 using System;
@@ -157,8 +157,8 @@ namespace ManageVirtualMachinesInParallelWithNetwork
                         .WithExistingResourceGroup(resourceGroup)
                         .WithExistingPrimaryNetwork(network)
                         .WithSubnet("Front-end")
-                        .WithPrimaryPrivateIpAddressDynamic()
-                        .WithoutPrimaryPublicIpAddress()
+                        .WithPrimaryPrivateIPAddressDynamic()
+                        .WithoutPrimaryPublicIPAddress()
                         .WithPopularLinuxImage(KnownLinuxVirtualMachineImage.UbuntuServer16_04_Lts)
                         .WithRootUsername(UserName)
                         .WithRootPassword(Password)
@@ -177,8 +177,8 @@ namespace ManageVirtualMachinesInParallelWithNetwork
                         .WithExistingResourceGroup(resourceGroup)
                         .WithExistingPrimaryNetwork(network)
                         .WithSubnet("Back-end")
-                        .WithPrimaryPrivateIpAddressDynamic()
-                        .WithoutPrimaryPublicIpAddress()
+                        .WithPrimaryPrivateIPAddressDynamic()
+                        .WithoutPrimaryPublicIPAddress()
                         .WithPopularLinuxImage(KnownLinuxVirtualMachineImage.UbuntuServer16_04_Lts)
                         .WithRootUsername(UserName)
                         .WithRootPassword(Password)
@@ -224,7 +224,7 @@ namespace ManageVirtualMachinesInParallelWithNetwork
 
                 var azure = Azure
                     .Configure()
-                    .WithLogLevel(HttpLoggingDelegatingHandler.Level.BASIC)
+                    .WithLogLevel(HttpLoggingDelegatingHandler.Level.Basic)
                     .Authenticate(credentials)
                     .WithDefaultSubscription();
 

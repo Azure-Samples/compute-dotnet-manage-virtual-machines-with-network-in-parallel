@@ -4,7 +4,7 @@ platforms: .Net
 author: anuchandy
 ---
 
-#Getting Started with Compute - Manage Virtual Machines In Parallel With Network - in .Net #
+# Getting Started with Compute - Manage Virtual Machines In Parallel With Network - in .Net #
 
           Create a virtual network with two Subnets – frontend and backend
           Frontend allows HTTP in and denies Internet out
