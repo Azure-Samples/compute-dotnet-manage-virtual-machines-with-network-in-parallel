@@ -6,7 +6,7 @@ author: anuchandy
 
 # Getting Started with Compute - Manage Virtual Machines In Parallel With Network - in .Net #
 
-          Create a virtual network with two Subnets – frontend and backend
+          Create a virtual network with two Subnets � frontend and backend
           Frontend allows HTTP in and denies Internet out
           Backend denies Internet in and Internet out
           Create m Linux virtual machines in the frontend

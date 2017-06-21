@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
 using Microsoft.Azure.Management.Fluent;
@@ -25,7 +25,7 @@ namespace ManageVirtualMachinesInParallelWithNetwork
         private const string Password = "12NewPA$$w0rd!";
 
         /**
-         * Create a virtual network with two Subnets – frontend and backend
+         * Create a virtual network with two Subnets � frontend and backend
          * Frontend allows HTTP in and denies Internet out
          * Backend denies Internet in and Internet out
          * Create m Linux virtual machines in the frontend
