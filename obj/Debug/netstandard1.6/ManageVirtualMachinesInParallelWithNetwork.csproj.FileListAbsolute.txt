@@ -1,2 +1,0 @@
-C:\Sources\dotnet-samples\compute-dotnet-manage-virtual-machines-with-network-in-parallel\bin\Debug\netstandard1.6\ManageVirtualMachinesInParallelWithNetwork.deps.json
-C:\Sources\dotnet-samples\compute-dotnet-manage-virtual-machines-with-network-in-parallel\obj\Debug\netstandard1.6\ManageVirtualMachinesInParallelWithNetwork.csproj.CoreCompileInputs.cache
