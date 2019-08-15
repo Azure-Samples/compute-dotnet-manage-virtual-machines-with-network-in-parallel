@@ -4,18 +4,18 @@ languages:
 - csharp
 products:
 - azure
-services: Compute
-platforms: dotnet
-author: yaohaizh
+extensions:
+- services: Compute
+- platforms: dotnet
 ---
 
 # Getting started on managing virtual machines within subnets in parallel in C# #
 
-          Create a virtual network with two Subnets � frontend and backend
-          Frontend allows HTTP in and denies Internet out
-          Backend denies Internet in and Internet out
-          Create m Linux virtual machines in the frontend
-          Create m Windows virtual machines in the backend.
+ Create a virtual network with two Subnets � frontend and backend
+ Frontend allows HTTP in and denies Internet out
+ Backend denies Internet in and Internet out
+ Create m Linux virtual machines in the frontend
+ Create m Windows virtual machines in the backend.
 
 
 ## Running this Sample ##
