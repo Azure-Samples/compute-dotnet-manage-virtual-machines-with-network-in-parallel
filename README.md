@@ -7,11 +7,12 @@ products:
 extensions:
 - services: Compute
 - platforms: dotnet
+description: "Create a virtual network with two Subnets - frontend and backend."
 ---
 
 # Getting started on managing virtual machines within subnets in parallel in C# #
 
- Create a virtual network with two Subnets � frontend and backend
+ Create a virtual network with two Subnets - frontend and backend
  Frontend allows HTTP in and denies Internet out
  Backend denies Internet in and Internet out
  Create m Linux virtual machines in the frontend
