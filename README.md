@@ -10,7 +10,7 @@ extensions:
 description: "Create a virtual network with two Subnets - frontend and backend."
 ---
 
-# Getting started on managing virtual machines within subnets in parallel in C# #
+# Getting started on managing virtual machines within subnets in parallel in C#
 
  Create a virtual network with two Subnets - frontend and backend
  Frontend allows HTTP in and denies Internet out
@@ -25,13 +25,15 @@ To run this sample:
 
 Set the environment variable `AZURE_AUTH_LOCATION` with the full path for an auth file. See [how to create an auth file](https://github.com/Azure/azure-libraries-for-net/blob/master/AUTH.md).
 
-    git clone https://github.com/Azure-Samples/compute-dotnet-manage-virtual-machines-with-network-in-parallel.git
+```bash
+git clone https://github.com/Azure-Samples/compute-dotnet-manage-virtual-machines-with-network-in-parallel.git
 
-    cd compute-dotnet-manage-virtual-machines-with-network-in-parallel
+cd compute-dotnet-manage-virtual-machines-with-network-in-parallel
 
-    dotnet build
+dotnet build
 
-    bin\Debug\net452\ManageVirtualMachinesInParallelWithNetwork.exe
+bin\Debug\net452\ManageVirtualMachinesInParallelWithNetwork.exe
+```
 
 ## More information ##
 
