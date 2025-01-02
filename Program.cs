@@ -1,19 +1,25 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
-using Microsoft.Azure.Management.Fluent;
-using Microsoft.Azure.Management.Compute.Fluent.Models;
-using Microsoft.Azure.Management.Compute.Fluent;
-using Microsoft.Azure.Management.Network.Fluent;
-using Microsoft.Azure.Management.ResourceManager.Fluent;
-using Microsoft.Azure.Management.ResourceManager.Fluent.Authentication;
-using Microsoft.Azure.Management.ResourceManager.Fluent.Core;
-using Microsoft.Azure.Management.ResourceManager.Fluent.Core.ResourceActions;
-using Microsoft.Azure.Management.Network.Fluent.Models;
-using Microsoft.Azure.Management.Samples.Common;
+using Azure.Core;
+using Azure.Identity;
+using Azure.ResourceManager;
+using Azure.ResourceManager.Models;
+using Azure.ResourceManager.Compute;
+using Azure.ResourceManager.ManagedServiceIdentities;
+using Azure.ResourceManager.Resources;
+using Azure.ResourceManager.Compute.Models;
+using Azure.ResourceManager.Samples.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Azure.ResourceManager.Network.Models;
+using Azure.ResourceManager.Network;
+using Azure;
+using Azure.ResourceManager.Storage;
+using Azure.ResourceManager.Storage.Models;
 
 namespace ManageVirtualMachinesInParallelWithNetwork
 {
@@ -25,98 +31,98 @@ namespace ManageVirtualMachinesInParallelWithNetwork
         private static readonly string Password = Utilities.CreatePassword();
 
         /**
-         * Create a virtual network with two Subnets – frontend and backend
+         * Create a virtual network with two Subnets ?frontend and backend
          * Frontend allows HTTP in and denies Internet out
          * Backend denies Internet in and Internet out
          * Create m Linux virtual machines in the frontend
          * Create m Windows virtual machines in the backend.
          */
-        public static void RunSample(IAzure azure)
+        public static async Task RunSample(ArmClient client)
         {
-            string rgName = SdkContext.RandomResourceName("rgNEPP", 24);
-            string frontEndNSGName = SdkContext.RandomResourceName("fensg", 24);
-            string backEndNSGName = SdkContext.RandomResourceName("bensg", 24);
-            string networkName = SdkContext.RandomResourceName("vnetCOMV", 24);
-            string storageAccountName = SdkContext.RandomResourceName("stgCOMV", 20);
-
+            string rgName = Utilities.CreateRandomName("rgNEPP");
+            string frontEndNSGName = Utilities.CreateRandomName("fensg");
+            string backEndNSGName = Utilities.CreateRandomName("bensg");
+            string networkName = Utilities.CreateRandomName("vnetCOMV");
+            string pipName = Utilities.CreateRandomName("pip1");
+            string linuxComputerName = Utilities.CreateRandomName("linuxComputer");
+            string networkConfigurationName = Utilities.CreateRandomName("networkconfiguration");
+            string storageAccountName = Utilities.CreateRandomName("stgCOMV");
+            string storageAccountSkuName = Utilities.CreateRandomName("stgSku");
+            var pipDnsLabelLinuxVM = Utilities.CreateRandomName("rgpip1");
+            var region = AzureLocation.EastUS;
+            // Create a resource group [Where all resources gets created]
+            var lro = await client.GetDefaultSubscription().GetResourceGroups().CreateOrUpdateAsync(Azure.WaitUntil.Completed, rgName, new ResourceGroupData(AzureLocation.EastUS));
+            var resourceGroup = lro.Value;
             try
             {
-                // Create a resource group [Where all resources gets created]
-                IResourceGroup resourceGroup = azure.ResourceGroups
-                        .Define(rgName)
-                        .WithRegion(Region.USEast)
-                        .Create();
-
-                //============================================================
                 // Define a network security group for the front end of a subnet
                 // front end subnet contains two rules
                 // - ALLOW-SSH - allows SSH traffic into the front end subnet
                 // - ALLOW-WEB- allows HTTP traffic into the front end subnet
 
-                var frontEndNSGCreatable = azure.NetworkSecurityGroups
-                        .Define(frontEndNSGName)
-                        .WithRegion(Region.USEast)
-                        .WithExistingResourceGroup(resourceGroup)
-                        .DefineRule("ALLOW-SSH")
-                            .AllowInbound()
-                            .FromAnyAddress()
-                            .FromAnyPort()
-                            .ToAnyAddress()
-                            .ToPort(22)
-                            .WithProtocol(SecurityRuleProtocol.Tcp)
-                            .WithPriority(100)
-                            .WithDescription("Allow SSH")
-                        .Attach()
-                        .DefineRule("ALLOW-HTTP")
-                            .AllowInbound()
-                            .FromAnyAddress()
-                            .FromAnyPort()
-                            .ToAnyAddress()
-                            .ToPort(80)
-                            .WithProtocol(SecurityRuleProtocol.Tcp)
-                            .WithPriority(101)
-                            .WithDescription("Allow HTTP")
-                        .Attach();
+                var frontEndNSGCollection = resourceGroup.GetNetworkSecurityGroups();
+                var frontEndNSGData = new NetworkSecurityGroupData()
+                {
+                    Location = region,
+                    SecurityRules =
+                    {
+                        new SecurityRuleData()
+                        {
+                            Priority = 100,
+                            Description = "Allow SSH",
+                            Protocol = "tcp",
+                            SourcePortRange = "22"
+                        },
+                        new SecurityRuleData()
+                        {
+                            Priority = 101,
+                            Description = "ALLOW-HTTP",
+                            Protocol = "tcp",
+                            SourcePortRange = "80"
+                        }
+                    }
+                };
+                var frontEndNSGCreatable = (await frontEndNSGCollection.CreateOrUpdateAsync(WaitUntil.Completed, frontEndNSGName, frontEndNSGData)).Value;
 
                 //============================================================
                 // Define a network security group for the back end of a subnet
                 // back end subnet contains two rules
                 // - ALLOW-SQL - allows SQL traffic only from the front end subnet
                 // - DENY-WEB - denies all outbound internet traffic from the back end subnet
-
-                var backEndNSGCreatable = azure.NetworkSecurityGroups
-                        .Define(backEndNSGName)
-                            .WithRegion(Region.USEast)
-                            .WithExistingResourceGroup(resourceGroup)
-                            .DefineRule("ALLOW-SQL")
-                            .AllowInbound()
-                            .FromAddress("172.16.1.0/24")
-                            .FromAnyPort()
-                            .ToAnyAddress()
-                            .ToPort(1433)
-                            .WithProtocol(SecurityRuleProtocol.Tcp)
-                            .WithPriority(100)
-                            .WithDescription("Allow SQL")
-                        .Attach()
-                        .DefineRule("DENY-WEB")
-                            .DenyOutbound()
-                            .FromAnyAddress()
-                            .FromAnyPort()
-                            .ToAnyAddress()
-                            .ToAnyPort()
-                            .WithAnyProtocol()
-                            .WithDescription("Deny Web")
-                            .WithPriority(200)
-                        .Attach();
+                var backEndNSGCollection = resourceGroup.GetNetworkSecurityGroups();
+                var backEndNSGData = new NetworkSecurityGroupData()
+                {
+                    Location = region,
+                    SecurityRules =
+                    {
+                        new SecurityRuleData()
+                        {
+                            Priority = 100,
+                            Description = "ALLOW-SQL",
+                            Protocol = "tcp",
+                            SourcePortRange = "1433",
+                            SourceAddressPrefix = "172.16.1.0/24"
+                        },
+                        new SecurityRuleData()
+                        {
+                            Priority = 200,
+                            Description = "DENY-WEB",
+                        }
+                    }
+                };
+                var backEndNSGCreatable = (await frontEndNSGCollection.CreateOrUpdateAsync(WaitUntil.Completed, frontEndNSGName, frontEndNSGData)).Value;
 
                 Utilities.Log("Creating a security group for the front ends - allows SSH and HTTP");
                 Utilities.Log("Creating a security group for the back ends - allows SSH and denies all outbound internet traffic");
 
-                var networkSecurityGroups = azure.NetworkSecurityGroups
-                        .Create(frontEndNSGCreatable, backEndNSGCreatable);
+                var networkSecurityGroups = new List<NetworkSecurityGroupResource>
+                {
+                    frontEndNSGCreatable,
+                    backEndNSGCreatable
+                };
 
-                INetworkSecurityGroup frontendNSG = networkSecurityGroups.First(n => n.Name.Equals(frontEndNSGName, StringComparison.OrdinalIgnoreCase));
-                INetworkSecurityGroup backendNSG = networkSecurityGroups.First(n => n.Name.Equals(backEndNSGName, StringComparison.OrdinalIgnoreCase));
+                NetworkSecurityGroupResource frontendNSG = networkSecurityGroups.First(n => n.Data.Name.Equals(frontEndNSGName, StringComparison.OrdinalIgnoreCase));
+                NetworkSecurityGroupResource backendNSG = networkSecurityGroups.First(n => n.Data.Name.Equals(backEndNSGName, StringComparison.OrdinalIgnoreCase));
 
                 Utilities.Log("Created a security group for the front end: " + frontendNSG.Id);
                 Utilities.PrintNetworkSecurityGroup(frontendNSG);
@@ -125,82 +131,230 @@ namespace ManageVirtualMachinesInParallelWithNetwork
                 Utilities.PrintNetworkSecurityGroup(backendNSG);
 
                 // Create Network [Where all the virtual machines get added to]
-                var network = azure.Networks
-                        .Define(networkName)
-                        .WithRegion(Region.USEast)
-                        .WithExistingResourceGroup(resourceGroup)
-                        .WithAddressSpace("172.16.0.0/16")
-                        .DefineSubnet("Front-end")
-                            .WithAddressPrefix("172.16.1.0/24")
-                            .WithExistingNetworkSecurityGroup(frontendNSG)
-                        .Attach()
-                        .DefineSubnet("Back-end")
-                            .WithAddressPrefix("172.16.2.0/24")
-                            .WithExistingNetworkSecurityGroup(backendNSG)
-                        .Attach()
-                        .Create();
+                var virtualNetworkCollection = resourceGroup.GetVirtualNetworks();
+                var data = new VirtualNetworkData()
+                {
+                    Location = AzureLocation.EastUS,
+                    Subnets =
+                    {
+                        new SubnetData()
+                        {
+                            AddressPrefixes =
+                            {
+                                "172.16.1.0/24"
+                            },
+                            Name = "Front-end"
+                        },
+                        new SubnetData()
+                        {
+                            AddressPrefixes =
+                            {
+                                "172.16.2.0/24"
+                            },
+                            Name = "Back-end"
+                        }
+                    },
+                    AddressPrefixes =
+                    {
+                        "172.16.0.0/16"
+                    }
+                };
+                var virtualNetworkLro = await virtualNetworkCollection.CreateOrUpdateAsync(WaitUntil.Completed, networkName, data);
+                var virtualNetwork = virtualNetworkLro.Value;
+                // Create a public IP address
+                Utilities.Log("Creating a Linux Public IP address...");
+                var publicAddressIPCollection = resourceGroup.GetPublicIPAddresses();
+                var publicIPAddressdata = new PublicIPAddressData()
+                {
+                    Location = AzureLocation.EastUS,
+                    Sku = new PublicIPAddressSku()
+                    {
+                        Name = PublicIPAddressSkuName.Standard,
+                    },
+                    PublicIPAddressVersion = NetworkIPVersion.IPv4,
+                    PublicIPAllocationMethod = NetworkIPAllocationMethod.Static,
+                    DnsSettings = new PublicIPAddressDnsSettings()
+                    {
+                        DomainNameLabel = pipDnsLabelLinuxVM
+                    },
+                };
+                var publicIPAddressLro = await publicAddressIPCollection.CreateOrUpdateAsync(WaitUntil.Completed, pipName, publicIPAddressdata);
+                var publicIPAddress = publicIPAddressLro.Value;
+                Utilities.Log("Created a Linux Public IP address with name : " + publicIPAddress.Data.Name);
+
+                //Create a networkInterface
+                Utilities.Log("Created  linux networkInterfaces");
+                var frontEndNetworkInterfaceData = new NetworkInterfaceData()
+                {
+                    Location = AzureLocation.EastUS,
+                    IPConfigurations =
+                    {
+                        new NetworkInterfaceIPConfigurationData()
+                        {
+                            Name = "internal",
+                            Primary = true,
+                            Subnet = new SubnetData
+                            {
+                                Name = "Front-end",
+                                Id = new ResourceIdentifier($"{virtualNetwork.Data.Id}/subnets/Front-end")
+                            },
+                            PrivateIPAllocationMethod = NetworkIPAllocationMethod.Dynamic,
+                            PublicIPAddress = publicIPAddress.Data,
+                        }
+                    }
+                };
+                var frontEndNetworkInterfaceName = Utilities.CreateRandomName("frontendnetworkInterface");
+                var frontEndNic = (await resourceGroup.GetNetworkInterfaces().CreateOrUpdateAsync(WaitUntil.Completed, frontEndNetworkInterfaceName, frontEndNetworkInterfaceData)).Value;
+                Utilities.Log("Created a Linux network interface with name : " + frontEndNic.Data.Name);
+
+                var backEndNetworkInterfaceData = new NetworkInterfaceData()
+                {
+                    Location = AzureLocation.EastUS,
+                    IPConfigurations =
+                    {
+                        new NetworkInterfaceIPConfigurationData()
+                        {
+                            Name = "internal",
+                            Primary = true,
+                            Subnet = new SubnetData
+                            {
+                                Name = "Back-end",
+                                Id = new ResourceIdentifier($"{virtualNetwork.Data.Id}/subnets/Front-end")
+                            },
+                            PrivateIPAllocationMethod = NetworkIPAllocationMethod.Dynamic,
+                            PublicIPAddress = publicIPAddress.Data,
+                        }
+                    }
+                };
+                var backEndnetworkInterfaceName = Utilities.CreateRandomName("backendnetworkInterface");
+                var backEndNic = (await resourceGroup.GetNetworkInterfaces().CreateOrUpdateAsync(WaitUntil.Completed, backEndnetworkInterfaceName, backEndNetworkInterfaceData)).Value;
+                Utilities.Log("Created a Linux network interface with name : " + backEndNic.Data.Name);
 
                 // Prepare Creatable Storage account definition [For storing VMs disk]
-                var creatableStorageAccount = azure.StorageAccounts
-                        .Define(storageAccountName)
-                        .WithRegion(Region.USEast)
-                        .WithExistingResourceGroup(resourceGroup);
+                var storageAccountCollection = resourceGroup.GetStorageAccounts();
+                var acountData = new StorageAccountCreateOrUpdateContent(new StorageSku(storageAccountSkuName), StorageKind.Storage, region);
+                var creatableStorageAccount = (await storageAccountCollection.CreateOrUpdateAsync(WaitUntil.Completed, storageAccountName, acountData)).Value;
 
                 // Prepare a batch of Creatable Virtual Machines definitions
-                List<ICreatable<IVirtualMachine>> frontendCreatableVirtualMachines = new List<ICreatable<IVirtualMachine>>();
+                var virtualMachineCollection = resourceGroup.GetVirtualMachines();
+                List<VirtualMachineResource> frontendCreatableVirtualMachines = new List<VirtualMachineResource>();
 
                 for (int i = 0; i < FrontendVMCount; i++)
                 {
-                    var creatableVirtualMachine = azure.VirtualMachines
-                        .Define("VM-FE-" + i)
-                        .WithRegion(Region.USEast)
-                        .WithExistingResourceGroup(resourceGroup)
-                        .WithExistingPrimaryNetwork(network)
-                        .WithSubnet("Front-end")
-                        .WithPrimaryPrivateIPAddressDynamic()
-                        .WithoutPrimaryPublicIPAddress()
-                        .WithPopularLinuxImage(KnownLinuxVirtualMachineImage.UbuntuServer16_04_Lts)
-                        .WithRootUsername(UserName)
-                        .WithRootPassword(Password)
-                        .WithSize(VirtualMachineSizeTypes.Parse("Standard_D2a_v4"))
-                        .WithNewStorageAccount(creatableStorageAccount);
-                    frontendCreatableVirtualMachines.Add(creatableVirtualMachine);
+                    var backEndVmdata = new VirtualMachineData(AzureLocation.EastUS)
+                    {
+                        HardwareProfile = new VirtualMachineHardwareProfile()
+                        {
+                            VmSize = "Standard_D2a_v4"
+                        },
+                        OSProfile = new VirtualMachineOSProfile()
+                        {
+                            AdminUsername = UserName,
+                            AdminPassword = Password,
+                            ComputerName = linuxComputerName,
+                        },
+                        NetworkProfile = new VirtualMachineNetworkProfile()
+                        {
+                            NetworkInterfaces =
+                        {
+                            new VirtualMachineNetworkInterfaceReference()
+                            {
+                                Id = frontEndNic.Id,
+                                Primary = true,
+                            }
+                        }
+                        },
+                        StorageProfile = new VirtualMachineStorageProfile()
+                        {
+                            OSDisk = new VirtualMachineOSDisk(DiskCreateOptionType.FromImage)
+                            {
+                                OSType = SupportedOperatingSystemType.Linux,
+                                Caching = CachingType.ReadWrite,
+                                ManagedDisk = new VirtualMachineManagedDisk()
+                                {
+                                    StorageAccountType = StorageAccountType.StandardLrs
+                                }
+                            },
+                            ImageReference = new ImageReference()
+                            {
+                                Publisher = "Canonical",
+                                Offer = "UbuntuServer",
+                                Sku = "16.04-LTS",
+                                Version = "latest",
+                            }
+                        },
+                    };
+                    var virtualMachine_lro = await virtualMachineCollection.CreateOrUpdateAsync(WaitUntil.Completed, "VM-FE-" + i, backEndVmdata);
+                    var virtualMachine = virtualMachine_lro.Value;
+                    frontendCreatableVirtualMachines.Add(virtualMachine);
                 }
 
-                List<ICreatable<IVirtualMachine>> backendCreatableVirtualMachines = new List<ICreatable<IVirtualMachine>>();
+                List<VirtualMachineResource> backendCreatableVirtualMachines = new List<VirtualMachineResource>();
 
                 for (int i = 0; i < BackendVMCount; i++)
                 {
-                    var creatableVirtualMachine = azure.VirtualMachines
-                        .Define("VM-BE-" + i)
-                        .WithRegion(Region.USEast)
-                        .WithExistingResourceGroup(resourceGroup)
-                        .WithExistingPrimaryNetwork(network)
-                        .WithSubnet("Back-end")
-                        .WithPrimaryPrivateIPAddressDynamic()
-                        .WithoutPrimaryPublicIPAddress()
-                        .WithPopularLinuxImage(KnownLinuxVirtualMachineImage.UbuntuServer16_04_Lts)
-                        .WithRootUsername(UserName)
-                        .WithRootPassword(Password)
-                        .WithSize(VirtualMachineSizeTypes.Parse("Standard_D2a_v4"))
-                        .WithNewStorageAccount(creatableStorageAccount);
-                    backendCreatableVirtualMachines.Add(creatableVirtualMachine);
+                    var backEndVmdata = new VirtualMachineData(AzureLocation.EastUS)
+                    {
+                        HardwareProfile = new VirtualMachineHardwareProfile()
+                        {
+                            VmSize = "Standard_D2a_v4"
+                        },
+                        OSProfile = new VirtualMachineOSProfile()
+                        {
+                            AdminUsername = UserName,
+                            AdminPassword = Password,
+                            ComputerName = linuxComputerName,
+                        },
+                        NetworkProfile = new VirtualMachineNetworkProfile()
+                        {
+                            NetworkInterfaces =
+                        {
+                            new VirtualMachineNetworkInterfaceReference()
+                            {
+                                Id = backEndNic.Id,
+                                Primary = true,
+                            }
+                        }
+                        },
+                        StorageProfile = new VirtualMachineStorageProfile()
+                        {
+                            OSDisk = new VirtualMachineOSDisk(DiskCreateOptionType.FromImage)
+                            {
+                                OSType = SupportedOperatingSystemType.Linux,
+                                Caching = CachingType.ReadWrite,
+                                ManagedDisk = new VirtualMachineManagedDisk()
+                                {
+                                    StorageAccountType = StorageAccountType.StandardLrs
+                                }
+                            },
+                            ImageReference = new ImageReference()
+                            {
+                                Publisher = "Canonical",
+                                Offer = "UbuntuServer",
+                                Sku = "16.04-LTS",
+                                Version = "latest",
+                            }
+                        },
+                    };
+                    var virtualMachine_lro = await virtualMachineCollection.CreateOrUpdateAsync(WaitUntil.Completed, "VM-FE-" + i, backEndVmdata);
+                    var virtualMachine = virtualMachine_lro.Value;
+                    backendCreatableVirtualMachines.Add(virtualMachine);
                 }
 
                 var startTime = DateTimeOffset.Now.UtcDateTime;
                 Utilities.Log("Creating the virtual machines");
 
-                List<ICreatable<IVirtualMachine>> allCreatableVirtualMachines = new List<ICreatable<IVirtualMachine>>();
+                List<VirtualMachineResource> allCreatableVirtualMachines = new List<VirtualMachineResource>();
                 allCreatableVirtualMachines.AddRange(frontendCreatableVirtualMachines);
                 allCreatableVirtualMachines.AddRange(backendCreatableVirtualMachines);
 
-                var virtualMachines = azure.VirtualMachines.Create(allCreatableVirtualMachines.ToArray());
 
                 var endTime = DateTimeOffset.Now.UtcDateTime;
                 Utilities.Log("Created virtual machines");
 
-                foreach (var virtualMachine in virtualMachines)
+                foreach (var virtualMachine in allCreatableVirtualMachines)
                 {
+                    if (virtualMachine != null)
                     Utilities.Log(virtualMachine.Id);
                 }
 
@@ -209,29 +363,28 @@ namespace ManageVirtualMachinesInParallelWithNetwork
             finally
             {
                 Utilities.Log($"Deleting resource group : {rgName}");
-                azure.ResourceGroups.DeleteByName(rgName);
+                await resourceGroup.DeleteAsync(WaitUntil.Completed);
                 Utilities.Log($"Deleted resource group : {rgName}");
             }
         }
 
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             try
             {
                 //=============================================================
                 // Authenticate
-                AzureCredentials credentials = SdkContext.AzureCredentialsFactory.FromFile(Environment.GetEnvironmentVariable("AZURE_AUTH_LOCATION"));
-
-                var azure = Azure
-                    .Configure()
-                    .WithLogLevel(HttpLoggingDelegatingHandler.Level.Basic)
-                    .Authenticate(credentials)
-                    .WithDefaultSubscription();
+                var clientId = Environment.GetEnvironmentVariable("CLIENT_ID");
+                var clientSecret = Environment.GetEnvironmentVariable("CLIENT_SECRET");
+                var tenantId = Environment.GetEnvironmentVariable("TENANT_ID");
+                var subscription = Environment.GetEnvironmentVariable("SUBSCRIPTION_ID");
+                ClientSecretCredential credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+                ArmClient client = new ArmClient(credential, subscription);
 
                 // Print selected subscription
-                Utilities.Log("Selected subscription: " + azure.SubscriptionId);
+                Utilities.Log("Selected subscription: " + client.GetSubscriptions().Id);
 
-                RunSample(azure);
+                await RunSample(client);
             }
             catch (Exception ex)
             {
